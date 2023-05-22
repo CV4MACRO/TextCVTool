@@ -16,7 +16,7 @@ custom_config = r'--oem 3 --psm 6'
 pytesseract.pytesseract.tesseract_cmd = r'C:\Users\CF6P\AppData\Local\Programs\Tesseract-OCR\tesseract.exe'
 poppler_path = r"C:\Users\CF6P\Downloads\Release-23.01.0-0\poppler-23.01.0\Library\bin"
 
-OCR_HELPER_JSON_PATH  = r"C:\Users\CF6P\Desktop\cv_text\TextCVTool\TextCVHelper.json"
+OCR_HELPER_JSON_PATH  = r"TextCVHelper.json"
 OCR_HELPER = json.load(open(OCR_HELPER_JSON_PATH))
         
 def PDF_to_images(path):
@@ -44,8 +44,8 @@ def crop_and_rotate(processed_image):
     """
     Crop and rotate the image thanks to contour detection
     """
-    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (4,4))
-    dilate = cv2.dilate(~processed_image, kernel, iterations=1)
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3,3))
+    dilate = cv2.dilate(~processed_image, kernel, iterations=2)
     contours,_ = cv2.findContours(dilate, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     if len(contours) == 0:
         print("No contour found : Crop is impossible, processed image is return.")
@@ -55,17 +55,21 @@ def crop_and_rotate(processed_image):
     box = np.intp(cv2.boxPoints(rect))    
     # Rotate image
     angle = rect[2]
-    if 0<=angle<=90: angle = angle-90 # Angle correction , should be improve (robustness)
+    if 45<=angle<=90: angle = angle-90 # Angle correction , should be improve (robustness)
     rows, cols = processed_image.shape[:2]
     M = cv2.getRotationMatrix2D((cols/2,rows/2), angle, 1) # Rotation matrix
     img_rot = cv2.warpAffine(processed_image,M,(cols,rows))
     # rotate bounding box then crop
     points = np.intp(cv2.transform(np.array([box]), M))[0] # Points of angles of the box afeter rotatio,
     y0, y1, x0, x1 = _points_filter(points) # get the biggest crop
+    
     img_crop = img_rot[y0:y1, x0:x1]
+
     if img_crop.shape[0]*img_crop.shape[1] < 1200*900:
         print("The found crop seems to be to short, processed image is return.")
         return processed_image
+    # plt.imshow(img_crop)
+    # plt.show()
     return img_crop
 
 def _landmark_word_filter(sequence):
@@ -219,7 +223,7 @@ def _get_candadiate_global_OCR(cropped_image, landmark_boxes, relative_positions
                     x_test, y_test = x+w*(k//2), y+h*(k//2)
                     if x_min<x_test<x_max and y_min<y_test<y_max and not (x_box<x+w*(1//2)<x_box+w_box or y_box<y+h*(1//2)<y_box+h_box):
                         candidate_indexes.append(index)
-                        break # Sorry it's dirty :(
+                        break 
                 
     candidate_indexes = list(set(candidate_indexes)) # Merge found indexes by all landmark of the zone
     return candidate_indexes
@@ -332,7 +336,7 @@ def common_mistake_filter(condition_text, zone):
             new_sequence = []
             for i, word in enumerate(sequence):
                 word = ''.join([i for i in word if not i.isdigit()])
-                if jaro_distance(word.lower(), "eurofins") > 0.9:
+                if word.lower()[:5] == "eurof" :
                     new_sequence = sequence[:i]
                     break
                 elif len(word)>0 : new_sequence.append(word)
@@ -348,17 +352,18 @@ def select_text(clean_text): # More case by case function
             return clean_text[0]
         else:
             return clean_text 
-    else:
-        if type(clean_text[0]) == type([]):
+    else: # The list as more than one proposition (lists or strings)
+        if type(clean_text[0]) == type([]): # Mutiple propositions from different conditions
                 for i in range(len(clean_text)):
-                    for j in range(i,len(clean_text)):
-                        if jaro_distance("".join(clean_text[i]), "".join(clean_text[j]))>0.95 :
+                    for j in range(i+1,len(clean_text)):
+                        if jaro_distance("".join(clean_text[i]), "".join(clean_text[j]))>0.95 : # if the content of two lists is the same return
                             return clean_text[i]
+
         if type(clean_text[0]) == type(""):
                 for i in range(len(clean_text)):
-                    for j in range(i,len(clean_text)):
+                    for j in range(i+1,len(clean_text)):
                         if clean_text[i]==clean_text[j] :
-                            return clean_text[i]
+                            return [clean_text[i]]
         return clean_text
 
 def get_candidate_local_OCR(cropped_image, landmark_boxes, relative_positions):
@@ -370,7 +375,7 @@ def get_candidate_local_OCR(cropped_image, landmark_boxes, relative_positions):
         local_OCR = pytesseract.image_to_data(cropped_image[y_min:y_max, x_min:x_max], output_type=pytesseract.Output.DICT)
         sequence = []
         for i, word in enumerate(local_OCR["text"]):
-            if not(word.isspace() or len(word) == 0): 
+            if not(word.isspace() or len(word) == 0 or word=="|"):
                 sequence.append(word)
             elif len(sequence) != 0: # If space : new sequence
                 if sequence not in candidate_sequences : 
@@ -403,7 +408,7 @@ def TextExtractionTool(path):
         print(f"Landmarks are found. time  : {(time.time() - start_time)}")
         landmark_text_dict = get_wanted_text(cropped_image, landmarks_dict)
         print(f"Text is detected. time  : {(time.time() - start_time)}")
-        save_resultats(cropped_image, landmark_text_dict, save_path = os.path.split(path)[0]+ f"\\res\image_2{i+1}.jpg")
+        save_resultats(cropped_image, landmark_text_dict, save_path = os.path.split(path)[0]+ f"\\res\\scan2_{i+1}.jpg")
         print(f"Saved. time  : {(time.time() - start_time)}")
 
 def save_resultats(cropped_image, landmark_text_dict, save_path):
@@ -412,11 +417,19 @@ def save_resultats(cropped_image, landmark_text_dict, save_path):
     for i, (zone, dict) in enumerate(landmark_text_dict.items()):
         text = dict["text"]
         if len(dict["landmark"][0][1])>0:
-            res = _get_area(cropped_image, dict["landmark"][0][1], OCR_HELPER["regions"][zone]["relative_position"][0], corr_ratio=1.1)
-            if len(res)==0 : y_min, y_max, x_min, x_max = [0,0,0,0]
-            else :  y_min, y_max, x_min, x_max = res
+            areas = []
+            for j, box in enumerate(dict["landmark"]):
+                if box[0] == "found":
+                    relat_pos = OCR_HELPER["regions"][zone]["relative_position"][j]
+                else : relat_pos = [[0,1], [0,1]]
+                areas.append(_get_area(cropped_image, dict["landmark"][j][1], relat_pos, corr_ratio=1.1))
+            y_min, y_max, x_min, x_max = sorted(areas, key=(lambda x: (x[1]-x[0])*(x[3]-x[2])))[0]
             axs[a, b].imshow(cropped_image[y_min:y_max, x_min:x_max])
-            axs[a, b].set_title(f'{zone} : \n {text}', size = 30)
+            if zone == "parasite_recherche":
+                t1, t2 = text[:int(len(text)/2)], text[int(len(text)/2):]
+                axs[a, b].set_title(f'{zone} : \n {t1} \n {t2}', size = 30)
+            else :
+                axs[a, b].set_title(f'{zone} : \n {text}', size = 30)
         
         a+=1
         if i == 3 : 
@@ -424,28 +437,11 @@ def save_resultats(cropped_image, landmark_text_dict, save_path):
             b=1
     plt.plot()
     fig.savefig(save_path)
-    
-       
-
-        
-# A SUPER MEGA TOOL FOR SUPER COOL PEOPLE 
-# HOPE YOU WILL ENJOY
 
 if __name__ == "__main__":
     
-    # print("start")
+    print("start")
     path = r"C:\Users\CF6P\Desktop\cv_text\scan2.pdf"
-    # images = PDF_to_images(pdf)
-    # for i, image_og in enumerate(images[2:3]):
-    #     print(f"Scan {i} is processing")
-    #     pre_processed_image = preprocessed_image(image_og)
-    #     print("processed")
-    #     # plt.imshow(processed_image, cmap="gray")
-    #     # plt.show()
-    #     cropped_image = crop_and_rotate(pre_processed_image)
-    #     print("cropped")
-    #     # plt.imsave(r"C:\Users\CF6P\Desktop\cv_text\scan1"+ f"\crop_{i}.jpg", cropped_image, cmap="gray")
-    #     OCR_data, landmarks_dict = get_data_and_landmarks(cropped_image)
-    #     landmark_text_dict = get_wanted_text(cropped_image, landmarks_dict)
-    #     save_resultats(cropped_image, landmark_text_dict, r"C:\Users\CF6P\Desktop\cv_text\scan1\im3.jpg")
     TextExtractionTool(path)
+    
+# PR
