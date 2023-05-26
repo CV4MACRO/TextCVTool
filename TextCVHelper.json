@@ -39,9 +39,9 @@
         "parasite_recherche" : {
             "subregion" : [[0.4, 1], [0.16, 0.84]],
             "key_sentences" : [["72", "Parasite", "recherche", "(*)"]],
-            "relative_position" : [[[1,11], [0,1.6]]],
-            "conditions" : [["list", ["Meloidogyne chitwoodi", "Meloidogyne fallax", "Ralstonia solanacearum", "Clavibacter michiganensis subsp Sepedonicus", "Globodera pallida",
-                "Globodera rostochiensis", "Globodera pallida"]]]
+            "relative_position" : [[[1,20], [0,1.6]]],
+            "conditions" : [["list", ["Meloidogyne chitwoodi", "Meloidogyne fallax", "Meloidogyne enterolobii" , "Ralstonia solanacearum", "Clavibacter michiganensis", 
+            "Globodera pallida","Globodera rostochiensis", "Nacobus aberrans"]]]
         }
     },
     "text_constant" : ["", "Fiche", "de", "demande", "pour", "analyse", "officielle", "", "1Demandeur", "de", "l'analyse", "", "11", "Nom", "de", "l'inspecteur:", "(*)", "", "12", "Adresse", ":(*)","",

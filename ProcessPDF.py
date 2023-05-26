@@ -68,7 +68,8 @@ def crop_and_rotate(processed_image):
     if img_crop.shape[0]*img_crop.shape[1] < 1200*900:
         print("The found crop seems to be to short, processed image is return.")
         return processed_image
-    # plt.imshow(img_crop)
+    # plt.imshow(img_crop, cmap="gray")
+    # plt.axis('off')
     # plt.show()
     return img_crop
 
@@ -270,6 +271,12 @@ def _compute_distance_landmarks_candidate(landmark_boxes, candidate_sequences, O
     sorted_candidate = [candidate_sequences[s[0]] for s in sorted(distance_list, key= lambda x :x[1])]
     return sorted_candidate
 
+def _word_in_sequence_res(check_word, sequence_res):
+    for candidate_sequence in sequence_res:
+        for word in candidate_sequence:
+            if jaro_distance(word.lower(), check_word.lower())>0.95 :
+                return True
+
 
 def condition_filter(candidate_sequences, key_main_sentence, conditions):
     date_format = "%d/%m/%Y"
@@ -317,14 +324,12 @@ def condition_filter(candidate_sequences, key_main_sentence, conditions):
             check_list = condition[1]
             for check_elmt in check_list:
                 check_words = check_elmt.split(" ")
-                count=0
+                count = 0
                 for check_word in check_words:
-                    for candidate_sequence in sequence_res:
-                        for word in candidate_sequence:
-                            if jaro_distance(word.lower(), check_word.lower())>0.9 : 
-                                count+=1
-                                break
-                    if count >= len(check_words) and check_elmt not in new_sequence: new_sequence.append(check_elmt)
+                    if _word_in_sequence_res(check_word, sequence_res):
+                        count+=1
+                    if count >= len(check_words) and check_elmt not in new_sequence: 
+                        new_sequence.append(check_elmt)
         new_sequence = [seq for seq in new_sequence if len(seq)>0]
         sequence_res = new_sequence
     return sequence_res
@@ -356,8 +361,8 @@ def select_text(clean_text): # More case by case function
         if type(clean_text[0]) == type([]): # Mutiple propositions from different conditions
                 for i in range(len(clean_text)):
                     for j in range(i+1,len(clean_text)):
-                        if jaro_distance("".join(clean_text[i]), "".join(clean_text[j]))>0.95 : # if the content of two lists is the same return
-                            return clean_text[i]
+                        if jaro_distance("".join(clean_text[i]), "".join(clean_text[j]))>0.5 : # if the content of two lists is the same return
+                            return [word for word in clean_text[i] if word in clean_text[j]]
 
         if type(clean_text[0]) == type(""):
                 for i in range(len(clean_text)):
@@ -408,7 +413,7 @@ def TextExtractionTool(path):
         print(f"Landmarks are found. time  : {(time.time() - start_time)}")
         landmark_text_dict = get_wanted_text(cropped_image, landmarks_dict)
         print(f"Text is detected. time  : {(time.time() - start_time)}")
-        save_resultats(cropped_image, landmark_text_dict, save_path = os.path.split(path)[0]+ f"\\res\\scan2_{i+1}.jpg")
+        save_resultats(cropped_image, landmark_text_dict, save_path = os.path.split(path)[0]+ f"\\res\\scan1_{i+1}.jpg")
         print(f"Saved. time  : {(time.time() - start_time)}")
 
 def save_resultats(cropped_image, landmark_text_dict, save_path):
@@ -423,11 +428,11 @@ def save_resultats(cropped_image, landmark_text_dict, save_path):
                     relat_pos = OCR_HELPER["regions"][zone]["relative_position"][j]
                 else : relat_pos = [[0,1], [0,1]]
                 areas.append(_get_area(cropped_image, dict["landmark"][j][1], relat_pos, corr_ratio=1.1))
-            y_min, y_max, x_min, x_max = sorted(areas, key=(lambda x: (x[1]-x[0])*(x[3]-x[2])))[0]
+            y_min, y_max, x_min, x_max = sorted(areas, key=(lambda x: (x[1]-x[0])*(x[3]-x[2])))[-1]
             axs[a, b].imshow(cropped_image[y_min:y_max, x_min:x_max])
             if zone == "parasite_recherche":
-                t1, t2 = text[:int(len(text)/2)], text[int(len(text)/2):]
-                axs[a, b].set_title(f'{zone} : \n {t1} \n {t2}', size = 30)
+                t1, t2, t3 = text[:int(len(text)/3)], text[int(len(text)/3):int(2*len(text)/3):], text[int(2*len(text)/3):]
+                axs[a, b].set_title(f'{zone} : \n {t1} \n {t2} \n {t3}', size = 30)
             else :
                 axs[a, b].set_title(f'{zone} : \n {text}', size = 30)
         
@@ -441,7 +446,7 @@ def save_resultats(cropped_image, landmark_text_dict, save_path):
 if __name__ == "__main__":
     
     print("start")
-    path = r"C:\Users\CF6P\Desktop\cv_text\scan2.pdf"
+    path = r"C:\Users\CF6P\Desktop\cv_text\scan1.pdf"
     TextExtractionTool(path)
     
-# PR
+# PR<
