@@ -16,8 +16,8 @@ custom_config = r'--oem 3 --psm 6'
 pytesseract.pytesseract.tesseract_cmd = r'C:\Users\CF6P\AppData\Local\Programs\Tesseract-OCR\tesseract.exe'
 poppler_path = r"C:\Users\CF6P\Downloads\Release-23.01.0-0\poppler-23.01.0\Library\bin"
 
-OCR_HELPER_JSON_PATH  = r"TextCVHelper.json"
-OCR_HELPER = json.load(open(OCR_HELPER_JSON_PATH))
+OCR_HELPER_JSON_PATH  = r"TextCVTool/TextCVHelper.json"
+OCR_HELPER = json.load(open(OCR_HELPER_JSON_PATH))  
         
 def PDF_to_images(path):
     images = pdf2image.convert_from_path(path, poppler_path=poppler_path)
@@ -108,6 +108,8 @@ def _find_landmarks_index(key_sentences, text): # Could be optimized
     for key_sentence in key_sentences: # for landmark sentences from the json
         res = []
         distance_max = 0.70
+        if "NÂ°" in key_sentence :
+            key_sentence = list(map(lambda x : x.replace("NÂ°", "N°"),key_sentence)) #Correction of json format
         for i_key, key_word in enumerate(key_sentence): # among all words of the landmark
             for i_word, word in enumerate(text): 
                 if key_word.lower() == word.lower(): # if there is a perfect fit in an word (Maybe should be softer but would take more time)
@@ -280,7 +282,7 @@ def _word_in_sequence_res(check_word, sequence_res):
 
 def condition_filter(candidate_sequences, key_main_sentence, conditions):
     date_format = "%d/%m/%Y"
-    strip_string = "|\/(*[ ])_:!;,°.<>{}"
+    strip_string = " |\/[]_!°.<>{}"
     
     sequence_res = []
     for candidate_sequence in  candidate_sequences:
@@ -293,19 +295,24 @@ def condition_filter(candidate_sequences, key_main_sentence, conditions):
                 else : res_candidate_sequence.append(word.strip(strip_string))
         sequence_res.append(res_candidate_sequence) # This could work with list comprehension but don't work for me
     
-    if "after_key" not in [condition[0] for condition in conditions] : 
+    if "after_key" not in [condition[0] for condition in conditions] :
         sequence_res = [[word for word in candidate_sequence if unidecode(word) 
                      not in key_main_sentence] for candidate_sequence in  sequence_res]
         
     for condition in conditions:
         new_sequence =[]
         if condition[0] == "after_key":
+            keys = [word if "NÂ°" not in word else word.split("NÂ°")[0]+"N°"+word.split("NÂ°")[1]
+                    for word in condition[1]] # Maybe can be cleaner
+            cara_list = ["(*):", "(*)",":"]
             for candidate_sequence in sequence_res: # Detected sequences wich need iteration over themselves
                 last_matched_word = 0
                 for i, word in enumerate(candidate_sequence):
-                    if unidecode(word) in condition[1] : 
-                        last_matched_word = i
-                if last_matched_word >0 : new_sequence.append(candidate_sequence[last_matched_word+1:])
+                    if unidecode(word) in keys :
+                        if word in cara_list and last_matched_word==0 :pass # Not strong enough criteria to start
+                        else : last_matched_word = i+1
+                if last_matched_word!=0 : 
+                    new_sequence.append(candidate_sequence[last_matched_word:])
         if condition[0] == "date":
             for candidate_sequence in sequence_res: # Detected sequences wich need iteration over themselves
                 for word in candidate_sequence :
@@ -332,6 +339,7 @@ def condition_filter(candidate_sequences, key_main_sentence, conditions):
                         new_sequence.append(check_elmt)
         new_sequence = [seq for seq in new_sequence if len(seq)>0]
         sequence_res = new_sequence
+        
     return sequence_res
 
 def common_mistake_filter(condition_text, zone):
@@ -399,11 +407,14 @@ def get_wanted_text(cropped_image, landmarks_dict):
         cleaned_text = common_mistake_filter(condition_text, zone)
         res_text = select_text(cleaned_text) # Normalize and process condition text (ex : Somes are simple lists other lists of lists...)
         res_dict[zone]["text"] = res_text
+        if zone == "N_de_lot":    
+           print(res_text)
     return res_dict
 
 def TextExtractionTool(path):
     start_time = time.time()
     images = PDF_to_images(path)
+    # images = [images[2]]
     for i, image in enumerate(images):
         print(f"Image {i+1} is starting. time  : {(time.time() - start_time)}")
         processed_image = preprocessed_image(image)
@@ -413,7 +424,7 @@ def TextExtractionTool(path):
         print(f"Landmarks are found. time  : {(time.time() - start_time)}")
         landmark_text_dict = get_wanted_text(cropped_image, landmarks_dict)
         print(f"Text is detected. time  : {(time.time() - start_time)}")
-        save_resultats(cropped_image, landmark_text_dict, save_path = os.path.split(path)[0]+ f"\\res\\scan1_{i+1}.jpg")
+        save_resultats(cropped_image, landmark_text_dict, save_path = os.path.split(path)[0]+ f"\\res\\new_{i+1}.jpg")
         print(f"Saved. time  : {(time.time() - start_time)}")
 
 def save_resultats(cropped_image, landmark_text_dict, save_path):
@@ -446,7 +457,8 @@ def save_resultats(cropped_image, landmark_text_dict, save_path):
 if __name__ == "__main__":
     
     print("start")
-    path = r"C:\Users\CF6P\Desktop\cv_text\scan1.pdf"
+    path = r"C:\Users\CF6P\Desktop\cv_text\new.pdf"
     TextExtractionTool(path)
     
-# PR<
+# Fixed json N°   
+# Maked "Nom" detection more robust
