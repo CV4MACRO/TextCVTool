@@ -282,8 +282,8 @@ def _word_in_sequence_res(check_word, sequence_res):
 
 def condition_filter(candidate_sequences, key_main_sentence, conditions):
     date_format = "%d/%m/%Y"
-    strip_string = " |\/[]_!°.<>{}"
-    
+    strip_string_after_key = " |\/[]_!.<>{}"
+    strip_string_others = " |\/[]_!.<>{}()*:"
     sequence_res = []
     for candidate_sequence in  candidate_sequences:
         res_candidate_sequence =[]
@@ -291,8 +291,9 @@ def condition_filter(candidate_sequences, key_main_sentence, conditions):
             if any(c.isalnum() for c in unidecode(word)) and len(word)>0:
                 if "after_key" not in [condition[0] for condition in conditions]:
                     if word not in key_main_sentence:
-                        res_candidate_sequence.append(word.strip(strip_string))
-                else : res_candidate_sequence.append(word.strip(strip_string))
+                        res_candidate_sequence.append(word.strip(strip_string_after_key))
+                else : res_candidate_sequence.append(word.strip(strip_string_others))
+                
         sequence_res.append(res_candidate_sequence) # This could work with list comprehension but don't work for me
     
     if "after_key" not in [condition[0] for condition in conditions] :
@@ -315,6 +316,7 @@ def condition_filter(candidate_sequences, key_main_sentence, conditions):
                     new_sequence.append(candidate_sequence[last_matched_word:])
         if condition[0] == "date":
             for candidate_sequence in sequence_res: # Detected sequences wich need iteration over themselves
+                candidate_sequence = [word.strip(strip_string_others) for word in candidate_sequence]
                 for word in candidate_sequence :
                     try:
                         date = bool(datetime.strptime(word, date_format))
@@ -362,21 +364,22 @@ def select_text(clean_text): # More case by case function
             return clean_text
     elif len(clean_text) ==1 :
         if type(clean_text[0]) == type([]):
-            return clean_text[0]
+            return " ".join(clean_text[0])
         else:
-            return clean_text 
+            return clean_text[0]
     else: # The list as more than one proposition (lists or strings)
         if type(clean_text[0]) == type([]): # Mutiple propositions from different conditions
                 for i in range(len(clean_text)):
                     for j in range(i+1,len(clean_text)):
-                        if jaro_distance("".join(clean_text[i]), "".join(clean_text[j]))>0.5 : # if the content of two lists is the same return
-                            return [word for word in clean_text[i] if word in clean_text[j]]
+                        if jaro_distance("".join(clean_text[i]), "".join(clean_text[j]))>0.5 : # if the content of the two lists is the same return
+                            return " ".join([word for word in clean_text[i] if word in clean_text[j]])
+                return " ".join(clean_text[0]) # Else, arbitrary retrun the first text
 
         if type(clean_text[0]) == type(""):
                 for i in range(len(clean_text)):
                     for j in range(i+1,len(clean_text)):
                         if clean_text[i]==clean_text[j] :
-                            return [clean_text[i]]
+                            return " ".join([clean_text[i]]) # Clean the list form double
         return clean_text
 
 def get_candidate_local_OCR(cropped_image, landmark_boxes, relative_positions):
@@ -407,27 +410,33 @@ def get_wanted_text(cropped_image, landmarks_dict):
         cleaned_text = common_mistake_filter(condition_text, zone)
         res_text = select_text(cleaned_text) # Normalize and process condition text (ex : Somes are simple lists other lists of lists...)
         res_dict[zone]["text"] = res_text
-        if zone == "N_de_lot":    
-           print(res_text)
-    return res_dict
+        # if zone in ["nom"] :
+            # print(zone)
+            # print(candidate_sequences)
+            # print("RES :", res_text)
+    return res_dict 
 
 def TextExtractionTool(path):
     start_time = time.time()
     images = PDF_to_images(path)
-    # images = [images[2]]
-    for i, image in enumerate(images):
-        print(f"Image {i+1} is starting. time  : {(time.time() - start_time)}")
+    # images = [images[1]]
+    res_dict_per_image = {}
+    for i, image in enumerate(images,1):
+        print(f"Image {i} is starting. time  : {(time.time() - start_time)}")
         processed_image = preprocessed_image(image)
         cropped_image = crop_and_rotate(processed_image)
         print(f"Image is cropped. time  : {(time.time() - start_time)}")
         OCR_data, landmarks_dict = get_data_and_landmarks(cropped_image)
         print(f"Landmarks are found. time  : {(time.time() - start_time)}")
-        landmark_text_dict = get_wanted_text(cropped_image, landmarks_dict)
+        landmark_and_text_dict = get_wanted_text(cropped_image, landmarks_dict)
+        res_dict_per_image[i] = landmark_and_text_dict
         print(f"Text is detected. time  : {(time.time() - start_time)}")
-        save_resultats(cropped_image, landmark_text_dict, save_path = os.path.split(path)[0]+ f"\\res\\new_{i+1}.jpg")
-        print(f"Saved. time  : {(time.time() - start_time)}")
+        # save_image_resultats(cropped_image, landmark_and_text_dict, save_path = r"C:\Users\CF6P\Desktop\cv_text\Evaluate"+ f"\\scan2_{i}.jpg")
+        # print(f"Saved. time  : {(time.time() - start_time)}")
+    return res_dict_per_image
+    
 
-def save_resultats(cropped_image, landmark_text_dict, save_path):
+def save_image_resultats(cropped_image, landmark_text_dict, save_path):
     fig, axs = plt.subplots(4, 2, figsize=(30,30))
     a, b = 0, 0
     for i, (zone, dict) in enumerate(landmark_text_dict.items()):
@@ -457,8 +466,10 @@ def save_resultats(cropped_image, landmark_text_dict, save_path):
 if __name__ == "__main__":
     
     print("start")
-    path = r"C:\Users\CF6P\Desktop\cv_text\new.pdf"
+    path = r"C:\Users\CF6P\Desktop\cv_text\Data\scan2.pdf"
     TextExtractionTool(path)
     
 # Fixed json N°   
 # Maked "Nom" detection more robust
+
+# Scan3_5 NOM
