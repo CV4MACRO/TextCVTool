@@ -68,6 +68,6 @@ def jaro_distance(s1, s2):
             (match - t) / match)/ 3.0
  
 if __name__=="__main__":
-    a = 'Nom de l'
-    b = "NOM"
+    a = 'lot:'
+    b = "tot:"
     print(jaro_distance(a,b))

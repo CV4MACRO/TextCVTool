@@ -1,7 +1,7 @@
 import os
 import pandas as pd
 
-from ProcessPDF import TextExtractionTool
+from ProcessPDF_obs import TextExtractionTool
 from JaroDistance import jaro_distance
 
 
@@ -75,8 +75,8 @@ def get_score(data_excel_path = r"C:\Users\CF6P\Desktop\cv_text\Data\0_data.xlsx
     print("Evaluation is done")
     return   
 
-# l = [r"C:\Users\CF6P\Desktop\cv_text\Data\scan1.pdf", r"C:\Users\CF6P\Desktop\cv_text\Data\scan2.pdf", r"C:\Users\CF6P\Desktop\cv_text\Data\scan3.pdf"]
+l = [r"C:\Users\CF6P\Desktop\cv_text\Data\scan1.pdf", r"C:\Users\CF6P\Desktop\cv_text\Data\scan2.pdf", r"C:\Users\CF6P\Desktop\cv_text\Data\scan3.pdf"]
 # for el in l:
-#     eval_text_extraction(el)
+eval_text_extraction(l[0])
 
 get_score()
