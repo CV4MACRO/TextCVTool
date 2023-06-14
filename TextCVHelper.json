@@ -1,4 +1,10 @@
 {
+    "model" : { 
+        "hand" : "C:\\Users\\CF6P\\Desktop\\cv_text\\Data\\Test\\0_hand_empty.png",
+        "check" : "C:\\Users\\CF6P\\Desktop\\cv_text\\Data\\Test\\0_check_empty.png",
+        "table" : "C:\\Users\\CF6P\\Desktop\\cv_text\\Data\\Test\\0_table_empty.png"
+    },
+
     "regions" : {
         "N_d_echantillon" : {
             "subregion" : [[0, 0.25], [0.5, 0.95]],
@@ -51,11 +57,12 @@
         "parasite_recherche" : {
             "subregion" : [[0.4, 1], [0.16, 0.84]],
             "key_sentences" : [["72", "Parasite", "recherche", "(*)"]],
-            "relative_position" : [[[1,20], [0,1.6]]],
+            "relative_position" : [[[1,25], [0,1.6]]],
             "conditions" : [["list", ["Meloidogyne chitwoodi", "Meloidogyne fallax", "Meloidogyne enterolobii" , "Ralstonia solanacearum", "Clavibacter michiganensis", 
             "Globodera pallida","Globodera rostochiensis", "Nacobus aberrans"]]]
         }
     },
+
     "text_constant" : ["", "Fiche", "de", "demande", "pour", "analyse", "officielle", "", "1Demandeur", "de", "l'analyse", "", "11", "Nom", "de", "l'inspecteur:", "(*)", "", "12", "Adresse", ":(*)","",
     "13", "Fax:", "", "Telephone:", "", "2", "N°", "d'chantillon", "(*)", "", "21", "N°", "de", "suspicion:", "", "14", "Email", "institutionnel", ":","", "15", "Email", "inspecteur", ":(*)","",
     "N°", "de", "foyer", ":", "", "22", "date", "de", "prelevement", "(*)","", "23", "signature", "inspecteur", "","23", "signature", "de", "l'inspecte","",
