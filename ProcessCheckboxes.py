@@ -1,21 +1,52 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import cv2
-import pdf2image
-import json
-from copy import copy
-from skimage.metrics import structural_similarity as ssim
+import pytesseract
 
-poppler_path = r"C:\Users\CF6P\Downloads\Release-23.01.0-0\poppler-23.01.0\Library\bin"
-checkbox_path = r"C:\Users\CF6P\Desktop\cv_text\Data\Test\checkbox.png"
+from ProcessPDF import get_rectangle, crop_and_rotate
 
-OCR_HELPER_JSON_PATH  = r"TextCVHelper.json"
-OCR_HELPER = json.load(open(OCR_HELPER_JSON_PATH))  
+custom_config = r'--oem 3 --psm 6'
+pytesseract.pytesseract.tesseract_cmd = r'C:\Users\CF6P\AppData\Local\Programs\Tesseract-OCR\tesseract.exe'
+
+empty_checkbox_path = r"reference_images\empty_checkbox.png" 
+cross_checkbox_path = r"reference_images\cross_checkbox.png"
 
 def preprocessed_image(image):
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY+cv2.THRESH_OTSU)[1]
     return thresh
+
+class Template:
+    """
+    A class defining a template
+    """
+    def __init__(self, image_path, label, color, matching_threshold=0.5):
+        """
+        Args:
+            image_path (str): path of the template image path
+            label (str): the label corresponding to the template
+            color (List[int]): the color associated with the label (to plot detections)
+            matching_threshold (float): the minimum similarity score to consider an object is detected by template
+                matching
+        """
+        self.image_path = image_path
+        self.label = label
+        self.color = color
+        self.template = preprocessed_image(cv2.imread(image_path))
+        self.template_height, self.template_width = self.template.shape[:2]
+        self.matching_threshold = matching_threshold
+
+    def transform(cls, template, transform, mode = "OneByOne"):
+        if mode=="OneByOne":
+            return 
+        if mode == "All":
+            return
+        
+TEMPLATES = [Template(image_path=empty_checkbox_path, label="empty", color=(0, 0, 0), matching_threshold=0.6),
+             Template(image_path=cross_checkbox_path, label="cross", color=(0, 0, 0), matching_threshold=0.6)]
+
+TRANSFORM = [lambda x: cv2.flip(x,0), lambda x: cv2.flip(x,1), lambda x: cv2.resize(x, (int(x.shape[1]*1.15), x.shape[0])),
+             lambda x: cv2.resize(x, (x.shape[1], int(x.shape[0]*1.15)))] # Maybe can be cleaner with a transform class
 
 def get_iou(a, b, epsilon=1e-5):
     """ Given two boxes `a` and `b` defined as a list of four numbers:
@@ -56,30 +87,27 @@ def get_iou(a, b, epsilon=1e-5):
     iou = area_overlap / (area_combined+epsilon)
     return iou
 
-def checkbox_match(checkbox_path, cropped_image):
-    checkbox = cv2.imread(checkbox_path)
-    checkbox = preprocessed_image(checkbox)
-    w, h = checkbox.shape[:2]
-    template_matching = cv2.matchTemplate(
-    checkbox, cropped_image, cv2.TM_CCOEFF_NORMED)
-
-    match_locations = np.where(template_matching >= 0.6)
+def checkbox_match(templates, cropped_image):
     detections = []
-    
-    for (x, y) in zip(match_locations[1], match_locations[0]):
-        match = {
-            "TOP_LEFT_X": x,
-            "TOP_LEFT_Y": y,
-            "BOTTOM_RIGHT_X": x + w,
-            "BOTTOM_RIGHT_Y": y + h,
-            "MATCH_VALUE": template_matching[y, x],
-            "COLOR": (0, 191, 255)
-        }
-        detections.append(match)
-
+    for i, template in enumerate(templates):
+        w, h = template.template_width, template.template_height
+        template_matching = cv2.matchTemplate(template.template, cropped_image, cv2.TM_CCOEFF_NORMED)
+        match_locations = np.where(template_matching >= template.matching_threshold)
+        
+        for (x, y) in zip(match_locations[1], match_locations[0]):
+            match = {
+                "TOP_LEFT_X": x,
+                "TOP_LEFT_Y": y,
+                "BOTTOM_RIGHT_X": x + w,
+                "BOTTOM_RIGHT_Y": y + h,
+                "MATCH_VALUE": template_matching[y, x],
+                "LABEL" : template.label,
+                "COLOR": (0, 191, 255)
+            }
+            detections.append(match)
     return detections
 
-def non_max_suppression(objects, non_max_suppression_threshold=0.5, score_key="MATCH_VALUE"):
+def non_max_suppression(objects, non_max_suppression_threshold=0.2, score_key="MATCH_VALUE"):
     """
     Filter objects overlapping with IoU over threshold by keeping only the one with maximum score.
     Args:
@@ -118,16 +146,46 @@ def visualize(cropped_image, filtered_objects):
             image_with_detections,
             (detection["TOP_LEFT_X"], detection["TOP_LEFT_Y"]),
             (detection["BOTTOM_RIGHT_X"], detection["BOTTOM_RIGHT_Y"]),
-            detection["COLOR"],
-            2)
+            detection["COLOR"],2)
     plt.imshow(image_with_detections)
-    plt.show()
+    plt.show(block=True)
+    # plt.pause(3)
+    # plt.close()
     
-def get_checkboxes(checkbox_path, cropped_image):
-    detections = checkbox_match(checkbox_path, cropped_image)
+def crop_image_and_sort_format(processed_image, show=False):
+    format, rect = get_rectangle(processed_image)
+    cropped_image = crop_and_rotate(processed_image, rect)
+    if format != "table":
+        format = get_format_or_checkboxes(cropped_image, mode="get_format", show=show)
+    return format, cropped_image
+
+def get_lines(image):
+    edges = cv2.Canny(image, 50, 255)
+    lines = cv2.HoughLinesP(edges,1,np.pi/180,150,minLineLength=100,maxLineGap=20)
+    image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
+    for line in lines:
+        x1,y1,x2,y2 = line[0]
+        cv2.line(image,(x1,y1),(x2,y2),(255,0,0),3)
+    plt.imshow(image)
+    plt.show()
+    return lines
+    
+def get_format_or_checkboxes(cropped_image, mode="get_format", TEMPLATES=TEMPLATES, show=False):
+    y_im, x_im = cropped_image.shape[:2]
+    detections = checkbox_match(TEMPLATES, cropped_image)
     filtered_detection = non_max_suppression(detections)
-    visualize(cropped_image, filtered_detection)
-    if len(filtered_detection)>4:
-        return "check"
-    else:
-        return "hand"
+    if show : 
+        visualize(cropped_image, filtered_detection)
+    if mode == "get_boxes":
+        return filtered_detection
+    else: 
+        count = 0
+        for checkbox in filtered_detection:
+            x,y = checkbox["TOP_LEFT_X"], checkbox["TOP_LEFT_Y"] # Filter by the position of found boxes
+            if x<x_im/2 and y< y_im*(7/9):
+                count+=1
+        print(count)
+        if count>5: # Threshold choosen arbitrary
+            return "check"
+        else:
+            return "hand"

@@ -4,18 +4,11 @@ import cv2
 import pdf2image
 import json
 from copy import copy
-from skimage.metrics import structural_similarity as ssim
 
-from ProcessCheckboxes import get_checkboxes
+POPPLER_PATH = r"C:\Users\CF6P\Downloads\Release-23.01.0-0\poppler-23.01.0\Library\bin"
 
-poppler_path = r"C:\Users\CF6P\Downloads\Release-23.01.0-0\poppler-23.01.0\Library\bin"
-checkbox_path = r"C:\Users\CF6P\Desktop\cv_text\Data\Test\checkbox.png"
-
-OCR_HELPER_JSON_PATH  = r"TextCVHelper.json"
-OCR_HELPER = json.load(open(OCR_HELPER_JSON_PATH))  
-
-def PDF_to_images(path):
-    images = pdf2image.convert_from_path(path, poppler_path=poppler_path)
+def PDF_to_images(path, POPPLER=POPPLER_PATH):
+    images = pdf2image.convert_from_path(path, poppler_path=POPPLER)
     return [np.array(image) for image in images]
 
 def preprocessed_image(image):
@@ -64,7 +57,7 @@ def get_rectangle(processed_image, kernel_size=(3,3), interations = 2):
         return get_rectangle(processed_image, kernel_size=(5,5), interations = interations+2)
 
 
-def crop_and_rotate(processed_image, rect, format="hand"):
+def crop_and_rotate(processed_image, rect):
     if len(rect)==0 : 
         return processed_image
     box = np.intp(cv2.boxPoints(rect))    
@@ -84,14 +77,6 @@ def crop_and_rotate(processed_image, rect, format="hand"):
     # plt.show()
     return cropped_image
 
-def process_and_sort_format(processed_image):
-    format, rect = get_rectangle(processed_image)
-    cropped_image = crop_and_rotate(processed_image, rect, format="hand")
-    if format != "table":
-        format = get_checkboxes(checkbox_path, cropped_image)
-        
-    print(format)
-    return format, cropped_image
     
 if __name__ == "__main__":
     
@@ -102,9 +87,7 @@ if __name__ == "__main__":
     for i, image in enumerate(images,1):
         print(f"\nImage {i} is starting")
         processed_image = preprocessed_image(image)
-        format, cropped_image = process_and_sort_format(processed_image)
-        plt.imsave(r"C:\Users\CF6P\Desktop\cv_text\Data\Test" + f"\\res_{i}.png", cropped_image, cmap="gray")
-        print(f"Image is cropped.")
+  
         
 ##########################################################""
         
